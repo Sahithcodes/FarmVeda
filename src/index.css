@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: #0B1713;
+    color: #F4F8F5;
+    font-family: 'Inter', 'Noto Sans Devanagari', 'Noto Sans Kannada', sans-serif;
+  }
+}
+
+/* Custom scrollbar for modern farmer app */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0B1713;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #244D3F;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64D995;
+}
+
+/* Glassmorphism and Card Styling */
+.glass-panel {
+  background: rgba(23, 51, 42, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(100, 217, 149, 0.15);
+}
+
+.fv-card {
+  background-color: #17332A;
+  border: 1px solid #244D3F;
+  border-radius: 1.5rem;
+}
+
+.fv-input {
+  background-color: rgba(11, 23, 19, 0.7);
+  border: 1px solid #244D3F;
+  color: #F4F8F5;
+  border-radius: 1rem;
+}
+
+.fv-input:focus {
+  outline: none;
+  border-color: #64D995;
+  box-shadow: 0 0 0 2px rgba(100, 217, 149, 0.2);
+}
+
+/* Safe area insets for mobile notches and bottom bars */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+
+.safe-top {
+  padding-top: env(safe-area-inset-top, 16px);
+}
