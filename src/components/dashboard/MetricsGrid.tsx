@@ -17,6 +17,7 @@ interface MetricsGridProps {
   sensors: Sensor[];
   irrigationSchedule?: IrrigationSchedule;
   onNavigateTab: (tab: string) => void;
+  backendMode?: boolean;
 }
 
 export const MetricsGrid: React.FC<MetricsGridProps> = ({
@@ -24,12 +25,14 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
   sensors,
   irrigationSchedule,
   onNavigateTab,
+  backendMode = false,
 }) => {
   const { t, language } = useLanguage();
 
-  const moisture = latestReading ? latestReading.moisturePercent : 68;
-  const temp = latestReading ? latestReading.temperatureC : 29;
-  const humidity = latestReading ? latestReading.humidityPercent : 72;
+  const hasReading = Boolean(latestReading);
+  const moisture = latestReading?.moisturePercent ?? (backendMode ? 0 : 68);
+  const temp = latestReading?.temperatureC ?? (backendMode ? 0 : 29);
+  const humidity = latestReading?.humidityPercent ?? (backendMode ? 0 : 72);
   const rainfall = latestReading ? latestReading.rainfallMm : 0;
   const isPumpOn = irrigationSchedule?.status === 'ON';
 
@@ -39,11 +42,12 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
 
   const readingTimeLabel = latestReading?.readingTime
     ? `${latestReading.readingDate || 'Today'} ${latestReading.readingTime}`
-    : 'Recent (Local)';
+    : latestReading?.timestamp ? new Date(latestReading.timestamp).toLocaleString() : backendMode ? 'No backend reading' : 'Recent (Local)';
 
   // Moisture status evaluation
-  const moistureStatus =
-    moisture < 45
+  const moistureStatus = !hasReading && backendMode
+    ? { label: 'No reading', color: 'text-[#A9BDB1]', bg: 'bg-[#10251F] border-[#244D3F]', bar: 'bg-[#244D3F]' }
+    : moisture < 45
       ? { label: t('statusWarning'), color: 'text-[#F4B740]', bg: 'bg-[#F4B740]/15 border-[#F4B740]/30', bar: 'bg-[#F4B740]' }
       : moisture > 80
       ? { label: t('statusWarning'), color: 'text-sky-400', bg: 'bg-sky-500/15 border-sky-500/30', bar: 'bg-sky-400' }
@@ -80,12 +84,13 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         {/* Big Number */}
         <div className="flex items-baseline gap-2 my-2">
           <span className="text-4xl sm:text-5xl font-black text-[#F4F8F5] tracking-tight">
-            {moisture}%
+            {!hasReading && backendMode ? '—' : `${moisture}%`}
           </span>
           <span className="text-xs font-semibold text-[#A9BDB1]">
             {language === 'hi' ? 'जड़ स्तर पर' : language === 'kn' ? 'ಬೇರಿನ ಮಟ್ಟದಲ್ಲಿ' : 'in root zone'}
           </span>
         </div>
+        {backendMode && latestReading?.source === 'synthetic_demo' && <p className="text-[11px] text-[#F4B740]">Synthetic demo data · not real farm measurements</p>}
 
         {/* Visual Progress Bar */}
         <div className="w-full bg-[#10251F] border border-[#244D3F]/50 h-2.5 rounded-full overflow-hidden my-2.5">
@@ -96,7 +101,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-[#A9BDB1] font-semibold pt-1">
-          <span>{moisture < 50 ? t('moistureDryNote') : t('moistureHealthyNote')}</span>
+          <span>{!hasReading && backendMode ? 'No backend sensor reading is available.' : moisture < 50 ? t('moistureDryNote') : t('moistureHealthyNote')}</span>
           <ArrowUpRight className="w-4 h-4 text-[#64D995] opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
         </div>
       </div>
@@ -127,7 +132,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
 
         <div className="flex items-baseline gap-2 my-2">
           <span className="text-4xl sm:text-5xl font-black text-[#F4F8F5] tracking-tight">
-            {temp}°C
+            {!hasReading && backendMode ? '—' : `${temp}°C`}
           </span>
           <span className="text-xs font-semibold text-[#A9BDB1]">
             {temp > 30 ? (language === 'hi' ? 'गर्म' : language === 'kn' ? 'ಬಿಸಿ' : 'Warm') : (language === 'hi' ? 'सामान्य' : language === 'kn' ? 'ಸಾಮಾನ್ಯ' : 'Pleasant')}
@@ -142,7 +147,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-[#A9BDB1] font-semibold pt-1">
-          <span>Min: 21°C • Max: 32°C</span>
+          <span>{backendMode ? 'Weather details are on the Weather page.' : 'Min: 21°C • Max: 32°C'}</span>
           <ArrowUpRight className="w-4 h-4 text-[#64D995] opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
@@ -173,7 +178,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
 
         <div className="flex items-baseline gap-2 my-2">
           <span className="text-4xl sm:text-5xl font-black text-[#F4F8F5] tracking-tight">
-            {humidity}%
+            {!hasReading && backendMode ? '—' : `${humidity}%`}
           </span>
           <span className="text-xs font-semibold text-[#A9BDB1]">
             {humidity > 70 ? (language === 'hi' ? 'आर्द्र' : language === 'kn' ? 'ಆರ್ದ್ರ' : 'Humid') : 'Normal'}
@@ -188,7 +193,7 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-[#A9BDB1] font-semibold pt-1">
-          <span>{language === 'hi' ? 'पत्तियों पर नमी अनुकूल है' : language === 'kn' ? 'ಎಲೆಗಳ ತೇವಾಂಶ ಉತ್ತಮ' : 'Canopy moisture is good'}</span>
+          <span>{backendMode ? 'Latest recorded sensor humidity.' : language === 'hi' ? 'पत्तियों पर नमी अनुकूल है' : language === 'kn' ? 'ಎಲೆಗಳ ತೇವಾಂಶ ಉತ್ತಮ' : 'Canopy moisture is good'}</span>
           <ArrowUpRight className="w-4 h-4 text-[#64D995] opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>
@@ -213,25 +218,25 @@ export const MetricsGrid: React.FC<MetricsGridProps> = ({
             </div>
           </div>
           <span className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-500/15 border border-indigo-500/30 text-indigo-300">
-            12 mm
+            {backendMode ? 'Forecast unavailable' : '12 mm'}
           </span>
         </div>
 
         <div className="flex items-baseline gap-2 my-2">
           <span className="text-4xl sm:text-5xl font-black text-[#F4F8F5] tracking-tight">
-            12 <span className="text-2xl font-bold">mm</span>
+            {backendMode ? '—' : <>12 <span className="text-2xl font-bold">mm</span></>}
           </span>
           <span className="text-xs font-semibold text-indigo-300 bg-indigo-500/15 border border-indigo-500/20 px-2 py-0.5 rounded-md">
-            {language === 'hi' ? 'कल दोपहर' : language === 'kn' ? 'ನಾಳೆ ಮಧ್ಯಾಹ್ನ' : 'Tomorrow PM'}
+            {backendMode ? 'Weather API' : language === 'hi' ? 'कल दोपहर' : language === 'kn' ? 'ನಾಳೆ ಮಧ್ಯಾಹ್ನ' : 'Tomorrow PM'}
           </span>
         </div>
 
         <div className="w-full bg-[#10251F] border border-[#244D3F]/50 h-2.5 rounded-full overflow-hidden my-2.5">
-          <div className="h-full bg-indigo-400 rounded-full" style={{ width: '65%' }} />
+          {!backendMode && <div className="h-full bg-indigo-400 rounded-full" style={{ width: '65%' }} />}
         </div>
 
         <div className="flex items-center justify-between text-[11px] text-[#A9BDB1] font-semibold pt-1">
-          <span>80% {language === 'hi' ? 'संभावना' : language === 'kn' ? 'ಸಂಭವನೀಯತೆ' : 'chance'} • {language === 'hi' ? 'सिंचाई स्थगित रखें' : language === 'kn' ? 'ನೀರಾವರಿ ಮುಂದೂಡಿ' : 'Hold irrigation'}</span>
+          <span>{backendMode ? 'Open Weather for the configured provider forecast.' : <>80% {language === 'hi' ? 'संभावना' : language === 'kn' ? 'ಸಂಭವನೀಯತೆ' : 'chance'} • {language === 'hi' ? 'सिंचाई स्थगित रखें' : language === 'kn' ? 'ನೀರಾವರಿ ಮುಂದೂಡಿ' : 'Hold irrigation'}</>}</span>
           <ArrowUpRight className="w-4 h-4 text-[#64D995] opacity-0 group-hover:opacity-100 transition-opacity" />
         </div>
       </div>

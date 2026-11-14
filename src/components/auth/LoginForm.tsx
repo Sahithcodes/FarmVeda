@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { Mail, Lock, Eye, EyeOff, LogIn, Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { apiClient } from '../../services/apiClient';
 
 export const LoginForm: React.FC = () => {
   const { t } = useLanguage();
@@ -46,8 +47,8 @@ export const LoginForm: React.FC = () => {
 
   // Quick Demo account auto-fill
   const fillDemoAccount = () => {
-    setIdentifier('farmer@farmveda.in');
-    setPassword('FarmVeda@2026');
+    setIdentifier(apiClient.configured ? 'demo@farmveda.com' : 'farmer@farmveda.in');
+    setPassword(apiClient.configured ? 'FarmVedaDemo@2026' : 'FarmVeda@2026');
     setErrorMessage(null);
   };
 
@@ -82,7 +83,7 @@ export const LoginForm: React.FC = () => {
               {t('useDemoAccount')}
             </p>
             <p className="text-[11px] text-gray-300 font-mono">
-              farmer@farmveda.in / FarmVeda@2026
+              {apiClient.configured ? 'demo@farmveda.com / FarmVedaDemo@2026' : 'farmer@farmveda.in / FarmVeda@2026'}
             </p>
           </div>
         </div>

@@ -133,7 +133,7 @@ export interface SensorReading {
   irrigationActive: boolean; // (irrigationStatus)
   irrigationStatus?: 'ON' | 'OFF';
   isSimulated?: boolean;
-  source?: 'manual' | 'simulated' | 'sensor';
+  source?: 'manual' | 'simulated' | 'sensor' | 'synthetic_demo';
 }
 
 export interface IrrigationSchedule {

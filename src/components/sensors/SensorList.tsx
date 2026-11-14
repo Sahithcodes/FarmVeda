@@ -34,14 +34,16 @@ interface SensorListProps {
   farms: Farm[];
   fields: Field[];
   latestReading?: SensorReading;
+  readingsHistory: SensorReading[];
   selectedFarmId: string;
   selectedFieldId?: string;
   onAddSensor: (sensor: Sensor) => void;
   onUpdateSensor: (sensor: Sensor) => void;
   onDeleteSensor: (id: string) => void;
   onToggleSensorStatus: (id: string) => void;
-  onAddManualReading: (reading: Omit<SensorReading, 'id'>) => void;
+  onAddManualReading: (reading: Omit<SensorReading, 'id'>) => void | Promise<void>;
   onSimulatePulse: () => void;
+  backendMode?: boolean;
 }
 
 export const SensorList: React.FC<SensorListProps> = ({
@@ -49,6 +51,7 @@ export const SensorList: React.FC<SensorListProps> = ({
   farms,
   fields,
   latestReading,
+  readingsHistory,
   selectedFarmId,
   selectedFieldId,
   onAddSensor,
@@ -57,6 +60,7 @@ export const SensorList: React.FC<SensorListProps> = ({
   onToggleSensorStatus,
   onAddManualReading,
   onSimulatePulse,
+  backendMode = false,
 }) => {
   const { t, language } = useLanguage();
 
@@ -156,9 +160,7 @@ export const SensorList: React.FC<SensorListProps> = ({
             sensors={sensors}
             defaultFarmId={selectedFarmId}
             defaultFieldId={selectedFieldId}
-            onSubmit={(reading) => {
-              onAddManualReading(reading);
-            }}
+            onSubmit={onAddManualReading}
             onCancel={() => setActiveTabSection('sensors')}
           />
         </div>
@@ -250,12 +252,15 @@ export const SensorList: React.FC<SensorListProps> = ({
                 const isOnline =
                   sensor.status === 'online' || sensor.status === 'active';
                 const isWarning = sensor.status === 'warning';
+                const sensorReading = readingsHistory.filter((reading) => reading.sensorId === sensor.id)
+                  .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0]
+                  || (latestReading?.sensorId === sensor.id ? latestReading : undefined);
 
-                const sensorMoisture = !isOnline
+                const sensorMoisture = !isOnline && !backendMode
                   ? 42
-                  : latestReading?.moisturePercent || 68;
-                const sensorTemp = !isOnline ? 26 : latestReading?.temperatureC || 29;
-                const sensorHum = !isOnline ? 60 : latestReading?.humidityPercent || 72;
+                  : sensorReading?.moisturePercent ?? (backendMode ? null : 68);
+                const sensorTemp = !isOnline && !backendMode ? 26 : sensorReading?.temperatureC ?? (backendMode ? null : 29);
+                const sensorHum = !isOnline && !backendMode ? 60 : sensorReading?.humidityPercent ?? (backendMode ? null : 72);
 
                 return (
                   <div
@@ -385,7 +390,7 @@ export const SensorList: React.FC<SensorListProps> = ({
                           <span>Moisture</span>
                         </div>
                         <span className="text-lg sm:text-xl font-black text-[#F4F8F5]">
-                          {sensorMoisture}%
+                          {sensorMoisture == null ? '—' : `${sensorMoisture}%`}
                         </span>
                       </div>
 
@@ -395,7 +400,7 @@ export const SensorList: React.FC<SensorListProps> = ({
                           <span>Temp</span>
                         </div>
                         <span className="text-lg sm:text-xl font-black text-[#F4F8F5]">
-                          {sensorTemp}°C
+                          {sensorTemp == null ? '—' : `${sensorTemp}°C`}
                         </span>
                       </div>
 
@@ -405,7 +410,7 @@ export const SensorList: React.FC<SensorListProps> = ({
                           <span>Humidity</span>
                         </div>
                         <span className="text-lg sm:text-xl font-black text-[#F4F8F5]">
-                          {sensorHum}%
+                          {sensorHum == null ? '—' : `${sensorHum}%`}
                         </span>
                       </div>
                     </div>
@@ -415,13 +420,14 @@ export const SensorList: React.FC<SensorListProps> = ({
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3 text-[#A9BDB1]" />
                         <span>
-                          {!isOnline ? 'Offline' : 'Last updated: Just now (Local)'}
+                          {!isOnline ? 'Offline' : backendMode ? (sensorReading ? `Updated: ${new Date(sensorReading.timestamp).toLocaleString()}` : 'No backend reading yet') : 'Last updated: Just now (Local)'}
                         </span>
                       </span>
                       <span className="font-bold text-[#64D995]">
-                        {sensor.batteryLevel}% battery
+                        {backendMode ? 'Battery unavailable' : `${sensor.batteryLevel}% battery`}
                       </span>
                     </div>
+                    {backendMode && sensorReading?.source && <p className="text-[10px] text-[#F4B740] mt-2">Reading source: {sensorReading.source === 'synthetic_demo' ? 'Synthetic demo data' : sensorReading.source}</p>}
                   </div>
                 );
               })

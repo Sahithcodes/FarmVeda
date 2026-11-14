@@ -2,7 +2,7 @@ import React from 'react';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { Database, Info } from 'lucide-react';
 
-export const OfflineBanner: React.FC = () => {
+export const OfflineBanner: React.FC<{ backendMode?: boolean }> = ({ backendMode = false }) => {
   const { language } = useLanguage();
 
   const notices = {
@@ -15,7 +15,7 @@ export const OfflineBanner: React.FC = () => {
     <div className="bg-[#10251F]/95 border-b border-[#244D3F] px-4 py-1.5 text-[11px] text-[#A9BDB1] flex items-center justify-center gap-2">
       <Database className="w-3.5 h-3.5 text-[#64D995] flex-shrink-0" />
       <span className="font-semibold text-center text-[#F4F8F5]">
-        {notices[language] || notices.en}
+        {backendMode ? 'Backend API mode: farm and sensor data are loaded from the server. Synthetic demo readings are labelled; watering advice is experimental and advisory only.' : notices[language] || notices.en}
       </span>
     </div>
   );

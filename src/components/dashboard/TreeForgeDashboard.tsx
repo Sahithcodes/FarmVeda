@@ -51,6 +51,7 @@ interface TreeForgeDashboardProps {
   onSimulatePulse: () => void;
   onUpdateActivity: (act: DailyActivity) => void;
   onOpenAssistant: () => void;
+  backendMode?: boolean;
 }
 
 export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
@@ -70,6 +71,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
   onSimulatePulse,
   onUpdateActivity,
   onOpenAssistant,
+  backendMode = false,
 }) => {
   const { t, language } = useLanguage();
   const [isPulsing, setIsPulsing] = useState(false);
@@ -77,11 +79,12 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
   const activeFarm = farms.find((f) => f.id === selectedFarmId) || farms[0];
   const activeFields = fields.filter((f) => f.farmId === (activeFarm?.id || selectedFarmId));
   const activeField = activeFields.find((f) => f.id === selectedFieldId) || activeFields[0];
+  const activeSensor = sensors.find((sensor) => sensor.fieldId === activeField?.id);
 
-  const moisture = latestReading ? latestReading.moisturePercent : 68;
-  const temp = latestReading ? latestReading.temperatureC : 29;
-  const humidity = latestReading ? latestReading.humidityPercent : 72;
-  const rainfall = latestReading ? latestReading.rainfallMm : 0;
+  const moisture = latestReading?.moisturePercent ?? (backendMode ? 0 : 68);
+  const temp = latestReading?.temperatureC ?? (backendMode ? 0 : 29);
+  const humidity = latestReading?.humidityPercent ?? (backendMode ? 0 : 72);
+  const rainfall = latestReading?.rainfallMm ?? (backendMode ? 0 : 0);
   const isPumpOn = irrigationSchedule?.status === 'ON';
 
   const onlineSensors = sensors.filter((s) => s.status === 'online' || s.status === 'active').length;
@@ -97,7 +100,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
   };
 
   // Status computation
-  const isDry = moisture < 50;
+  const isDry = Boolean(latestReading && moisture < 50);
   const isWet = moisture > 80;
 
   return (
@@ -120,7 +123,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                 </h3>
               </div>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#1D4033] text-[#64D995] border border-[#244D3F]">
-                Live
+                {backendMode ? (latestReading?.source === 'synthetic_demo' ? 'Synthetic demo data' : latestReading ? 'Backend data' : 'No reading') : 'Demo'}
               </span>
             </div>
 
@@ -137,7 +140,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                     </div>
                     <div>
                       <span className="text-[11px] text-[#A9BDB1] font-semibold block">Air Temperature</span>
-                      <span className="text-xl font-black text-[#F4F8F5]">{temp}°C</span>
+                      <span className="text-xl font-black text-[#F4F8F5]">{latestReading ? `${temp}°C` : backendMode ? '—' : `${temp}°C`}</span>
                     </div>
                   </div>
                   <span className="text-xs font-bold text-[#F4B740] bg-[#F4B740]/10 px-2 py-0.5 rounded-lg border border-[#F4B740]/20">
@@ -161,11 +164,11 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                     </div>
                     <div>
                       <span className="text-[11px] text-[#A9BDB1] font-semibold block">Relative Humidity</span>
-                      <span className="text-xl font-black text-[#F4F8F5]">{humidity}%</span>
+                      <span className="text-xl font-black text-[#F4F8F5]">{latestReading ? `${humidity}%` : backendMode ? '—' : `${humidity}%`}</span>
                     </div>
                   </div>
                   <span className="text-xs font-bold text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-lg border border-sky-500/20">
-                    Dew: 22°
+                    {backendMode ? 'Backend reading' : 'Dew: 22°'}
                   </span>
                 </div>
                 <div className="w-full bg-[#0B1713] h-1.5 rounded-full overflow-hidden mt-2.5">
@@ -173,7 +176,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                 </div>
               </div>
 
-              {/* Rain Forecast */}
+              {/* Rainfall measurement or local demo forecast */}
               <div
                 onClick={() => onNavigateTab('weather')}
                 className="p-3 rounded-2xl bg-[#10251F] border border-[#244D3F]/50 hover:border-[#64D995]/40 transition-all cursor-pointer group"
@@ -184,21 +187,21 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                       <CloudRain className="w-4 h-4" />
                     </div>
                     <div>
-                      <span className="text-[11px] text-[#A9BDB1] font-semibold block">Rain Probability</span>
-                      <span className="text-xl font-black text-[#F4F8F5]">80% <span className="text-xs text-[#A9BDB1] font-medium">(12mm)</span></span>
+                      <span className="text-[11px] text-[#A9BDB1] font-semibold block">{backendMode ? 'Recorded Rainfall' : 'Rain Probability'}</span>
+                      <span className="text-xl font-black text-[#F4F8F5]">{backendMode ? (latestReading?.rainfallMm != null ? `${latestReading.rainfallMm} mm` : '—') : <>80% <span className="text-xs text-[#A9BDB1] font-medium">(12mm)</span></>}</span>
                     </div>
                   </div>
                   <span className="text-[11px] font-bold text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded-lg border border-indigo-500/20">
-                    Tomorrow
+                    {backendMode ? 'Sensor data' : 'Tomorrow'}
                   </span>
                 </div>
                 <div className="w-full bg-[#0B1713] h-1.5 rounded-full overflow-hidden mt-2.5">
-                  <div className="h-full bg-indigo-400 rounded-full" style={{ width: '80%' }} />
+                  {!backendMode && <div className="h-full bg-indigo-400 rounded-full" style={{ width: '80%' }} />}
                 </div>
               </div>
 
               {/* Wind & Solar UV Snapshot */}
-              <div className="grid grid-cols-2 gap-2 text-[11px] text-[#A9BDB1] font-semibold">
+              {!backendMode && <div className="grid grid-cols-2 gap-2 text-[11px] text-[#A9BDB1] font-semibold">
                 <div className="p-2.5 rounded-xl bg-[#10251F] border border-[#244D3F]/40 flex items-center gap-2">
                   <Wind className="w-3.5 h-3.5 text-[#64D995]" />
                   <span>14 km/h SW</span>
@@ -207,7 +210,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                   <Sun className="w-3.5 h-3.5 text-[#F4B740]" />
                   <span>UV Index: 5.2</span>
                 </div>
-              </div>
+              </div>}
             </div>
           </div>
 
@@ -235,22 +238,22 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                   <span className="w-2.5 h-2.5 rounded-full bg-[#64D995] animate-ping" />
                   <div>
                     <span className="text-xs font-extrabold text-[#F4F8F5]">Network Status</span>
-                    <p className="text-[10px] text-[#A9BDB1]">LoRaWAN Mesh / Local DB</p>
+                    <p className="text-[10px] text-[#A9BDB1]">{backendMode ? 'Backend sensor registry' : 'LoRaWAN Mesh / Local DB'}</p>
                   </div>
                 </div>
                 <span className="text-xs font-black text-[#64D995]">
-                  {onlineSensors} / {totalSensors || 1} Online
+                  {backendMode ? `${totalSensors} Registered` : `${onlineSensors} / ${totalSensors || 1} Online`}
                 </span>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-center text-xs">
                 <div className="p-2.5 rounded-xl bg-[#10251F] border border-[#244D3F]/40">
                   <span className="text-[10px] text-[#A9BDB1] block uppercase font-bold">Avg Battery</span>
-                  <span className="text-sm font-black text-[#64D995] mt-0.5 block">94%</span>
+                  <span className="text-sm font-black text-[#64D995] mt-0.5 block">{backendMode ? '—' : '94%'}</span>
                 </div>
                 <div className="p-2.5 rounded-xl bg-[#10251F] border border-[#244D3F]/40">
                   <span className="text-[10px] text-[#A9BDB1] block uppercase font-bold">RSSI Signal</span>
-                  <span className="text-sm font-black text-[#64D995] mt-0.5 block">-68 dBm</span>
+                  <span className="text-sm font-black text-[#64D995] mt-0.5 block">{backendMode ? '—' : '-68 dBm'}</span>
                 </div>
               </div>
             </div>
@@ -265,7 +268,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
             <div className="space-y-2.5 text-xs font-semibold">
               <div className="flex items-center justify-between">
                 <span className="text-[#A9BDB1]">Soil pH (Root Level)</span>
-                <span className="text-[#64D995] font-black">6.8 (Neutral Ideal)</span>
+                <span className="text-[#64D995] font-black">{backendMode ? 'Not measured' : '6.8 (Neutral Ideal)'}</span>
               </div>
               <div className="w-full bg-[#10251F] h-1.5 rounded-full overflow-hidden">
                 <div className="h-full bg-[#64D995] rounded-full" style={{ width: '68%' }} />
@@ -273,7 +276,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
 
               <div className="flex items-center justify-between pt-1">
                 <span className="text-[#A9BDB1]">NPK Nutrient Ratio</span>
-                <span className="text-[#F4F8F5] font-bold">Balanced (N:42, P:18, K:35)</span>
+                <span className="text-[#F4F8F5] font-bold">{backendMode ? 'Not measured' : 'Balanced (N:42, P:18, K:35)'}</span>
               </div>
               <div className="w-full bg-[#10251F] h-1.5 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-400 rounded-full" style={{ width: '85%' }} />
@@ -364,7 +367,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                       Primary Soil Moisture Telemetry
                     </h3>
                     <p className="text-xs text-[#A9BDB1] font-medium">
-                      Sensor: <strong className="text-[#F4F8F5]">{activeField?.sensorId || 'SN-PADDY-01'}</strong> • Target Band: 50% – 75%
+                      Sensor: <strong className="text-[#F4F8F5]">{activeSensor?.sensorCode || activeField?.sensorId || (backendMode ? 'Unavailable' : 'SN-PADDY-01')}</strong> • {backendMode ? 'Threshold: see advisory' : 'Target Band: 50% – 75%'}
                     </p>
                   </div>
                 </div>
@@ -422,18 +425,19 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-                    <span className="text-4xl font-black text-[#F4F8F5] tracking-tight">{moisture}%</span>
+                    <span className="text-4xl font-black text-[#F4F8F5] tracking-tight">{latestReading ? `${moisture}%` : backendMode ? '—' : `${moisture}%`}</span>
                     <span className="text-[10px] font-bold text-[#A9BDB1] uppercase">Root Moisture</span>
                   </div>
                 </div>
 
                 <span className="text-xs font-semibold text-[#A9BDB1] mt-2">
-                  Last calibrated 2 mins ago
+                  {backendMode && latestReading ? `Recorded ${new Date(latestReading.timestamp).toLocaleString()}` : backendMode ? 'No recorded reading time' : 'Last calibrated 2 mins ago'}
                 </span>
               </div>
 
               {/* Depth Breakdown & Agronomic Target Band */}
               <div className="sm:col-span-7 space-y-3.5">
+                {backendMode ? <p className="p-3 rounded-2xl bg-[#10251F] border border-[#244D3F]/50 text-xs text-[#A9BDB1]">The backend provides one soil moisture measurement per reading. Soil depth values and real-time pump control are not available. Review the experimental watering recommendation on the Irrigation page.</p> : <>
                 <div>
                   <div className="flex justify-between text-xs font-bold mb-1.5">
                     <span className="text-[#A9BDB1]">Topsoil Stratum (0 - 15 cm)</span>
@@ -472,6 +476,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                       : 'Soil moisture is in the optimal growth band. Retains enough capillary water for 36 hours.'}
                   </p>
                 </div>
+                </>}
               </div>
             </div>
 
@@ -500,11 +505,11 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
               </h4>
               <p className="text-lg font-black text-[#F4F8F5]">{activeField?.cropType || 'Paddy / Rice'}</p>
               <div className="flex items-center gap-2 text-xs text-[#A9BDB1] font-semibold mt-1">
-                <span>Tillering Stage • Day 42 of 120</span>
+                <span>{backendMode ? 'Growth stage data not available' : 'Tillering Stage • Day 42 of 120'}</span>
               </div>
-              <div className="w-full bg-[#10251F] h-1.5 rounded-full overflow-hidden mt-3">
+              {!backendMode && <div className="w-full bg-[#10251F] h-1.5 rounded-full overflow-hidden mt-3">
                 <div className="h-full bg-[#64D995] rounded-full" style={{ width: '35%' }} />
-              </div>
+              </div>}
             </div>
 
             <div className="bg-[#17332A] rounded-3xl p-5 border border-[#244D3F] shadow-xl">
@@ -515,11 +520,11 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
               <div className="flex items-center justify-between">
                 <p className="text-lg font-black text-[#F4F8F5]">{activeField?.irrigationType || 'Drip Irrigation'}</p>
                 <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase ${isPumpOn ? 'bg-[#2E8B57] text-white animate-pulse' : 'bg-[#10251F] text-[#A9BDB1] border border-[#244D3F]'}`}>
-                  {isPumpOn ? 'Pumping' : 'Standby'}
+                  {backendMode ? 'Advisory only' : isPumpOn ? 'Pumping' : 'Standby'}
                 </span>
               </div>
               <p className="text-xs text-[#A9BDB1] font-semibold mt-1">
-                Automation mode: <strong className="text-[#64D995] font-bold">{irrigationSchedule?.mode === 'auto' ? 'AI Smart Auto' : 'Manual'}</strong>
+                {backendMode ? 'No physical pump is connected or controlled.' : <>Automation mode: <strong className="text-[#64D995] font-bold">{irrigationSchedule?.mode === 'auto' ? 'AI Smart Auto' : 'Manual'}</strong></>}
               </p>
             </div>
           </div>
@@ -549,6 +554,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
             </div>
 
             <div className="mt-3 space-y-3">
+              {backendMode ? <p className="p-3 rounded-2xl bg-[#10251F] border border-[#244D3F]/50 text-xs text-[#A9BDB1]">No schedule is available in the dashboard. View recorded schedules and irrigation events on the Irrigation page. No physical pump is controlled.</p> : <>
               <div className="p-3 rounded-2xl bg-[#10251F] border border-[#244D3F]/50">
                 <span className="text-[11px] text-[#A9BDB1] font-bold block uppercase">Scheduled Slot</span>
                 <div className="flex items-center justify-between mt-1">
@@ -579,6 +585,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                   </button>
                 </div>
               )}
+              </>}
             </div>
           </div>
 
@@ -601,6 +608,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
             </div>
 
             <div className="mt-3 space-y-3">
+              {backendMode ? <p className="text-xs text-[#A9BDB1] leading-relaxed">No validated moisture prediction is available. Use Analytics to review recorded history and Irrigation to review the experimental watering recommendation.</p> : <>
               <p className="text-xs text-[#A9BDB1] leading-relaxed">
                 Soil evapotranspiration rate: <strong className="text-[#F4F8F5]">4.2 mm/day</strong>. Moisture expected to drop to <strong className="text-[#F4B740]">54%</strong> by tomorrow afternoon without rain.
               </p>
@@ -612,7 +620,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                   <span className="text-[#64D995]">Steady (+3%)</span>
                 </div>
                 <div className="h-10 flex items-end gap-1.5 pt-1">
-                  {[62, 65, 59, 74, 70, 66, moisture].map((val, idx) => (
+                  {(backendMode ? (latestReading ? [moisture] : []) : [62, 65, 59, 74, 70, 66, moisture]).map((val, idx) => (
                     <div key={idx} className="flex-1 flex flex-col items-center gap-1">
                       <div
                         className={`w-full rounded-md transition-all ${
@@ -624,6 +632,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                   ))}
                 </div>
               </div>
+              </>}
             </div>
           </div>
 
@@ -646,6 +655,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
             </div>
 
             <div className="mt-3 space-y-2">
+              {backendMode ? <div className="p-3 rounded-xl bg-[#10251F] border border-[#244D3F]/40 text-xs text-[#A9BDB1]">Weather forecast details are available on the Weather page when the provider is configured.</div> : <>
               <div className="p-2.5 rounded-xl bg-[#10251F] border border-[#244D3F]/40 flex items-center justify-between text-xs">
                 <div className="flex items-center gap-2">
                   <Sun className="w-4 h-4 text-[#F4B740]" />
@@ -668,6 +678,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
                 <span className="text-[#64D995] font-bold block mb-0.5">🌾 Spray Window Advisory:</span>
                 Foliar nutrient spraying recommended early morning (06:30 – 09:00 AM) before winds rise.
               </div>
+              </>}
             </div>
           </div>
 
@@ -681,7 +692,7 @@ export const TreeForgeDashboard: React.FC<TreeForgeDashboardProps> = ({
             </div>
 
             <p className="text-xs text-[#A9BDB1] leading-relaxed">
-              {topRecommendation?.message || 'Weather forecast predicts 12 mm rainfall tomorrow afternoon. You can safely withhold evening irrigation to save 650 Liters.'}
+              {topRecommendation?.message || (backendMode ? 'Recommendations are available on the Irrigation page after loading the selected field’s backend data.' : 'Weather forecast predicts 12 mm rainfall tomorrow afternoon. You can safely withhold evening irrigation to save 650 Liters.')}
             </p>
 
             <button

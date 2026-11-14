@@ -26,12 +26,14 @@ interface MoistureChartProps {
   readingsHistory: SensorReading[];
   currentReading?: SensorReading;
   fieldName?: string;
+  backendMode?: boolean;
 }
 
 export const MoistureChart: React.FC<MoistureChartProps> = ({
   readingsHistory,
   currentReading,
   fieldName,
+  backendMode = false,
 }) => {
   const { t, language } = useLanguage();
   const [timeframe, setTimeframe] = useState<'today' | '7days' | '30days'>('7days');
@@ -77,16 +79,18 @@ export const MoistureChart: React.FC<MoistureChartProps> = ({
       ? Math.round(
           moistureValues.reduce((sum, val) => sum + val, 0) / moistureValues.length
         )
-      : currentReading?.moisturePercent || 68;
+      : currentReading?.moisturePercent ?? (backendMode ? null : 68);
   const maxMoisture =
-    moistureValues.length > 0 ? Math.max(...moistureValues) : 74;
+    moistureValues.length > 0 ? Math.max(...moistureValues) : (backendMode ? null : 74);
   const minMoisture =
-    moistureValues.length > 0 ? Math.min(...moistureValues) : 48;
+    moistureValues.length > 0 ? Math.min(...moistureValues) : (backendMode ? null : 48);
 
-  const currentMoist = currentReading?.moisturePercent || avgMoisture;
+  const currentMoist = currentReading?.moisturePercent ?? avgMoisture;
 
   const getMoistureAdvice = () => {
-    if (currentMoist < 45) {
+    if (currentMoist == null) {
+      return { text: 'No backend sensor readings are available for this field and time range.', icon: AlertTriangle, color: 'text-[#A9BDB1]', bg: 'bg-[#10251F] border-[#244D3F]' };
+    } else if (currentMoist < 45) {
       return {
         text: t('moistureDryNote'),
         icon: AlertTriangle,
@@ -125,6 +129,7 @@ export const MoistureChart: React.FC<MoistureChartProps> = ({
           <p className="text-xs sm:text-sm text-[#A9BDB1] font-medium mt-0.5">
             {fieldName ? `Root telemetry for ${fieldName}` : t('analyticsSubtitle')}
           </p>
+          {backendMode && currentReading?.source === 'synthetic_demo' && <p className="text-[11px] text-[#F4B740] mt-1">Synthetic demo readings · not real farm measurements</p>}
         </div>
 
         {/* Timeframe buttons */}
@@ -171,8 +176,8 @@ export const MoistureChart: React.FC<MoistureChartProps> = ({
           <div>
             <p className="text-xs font-bold text-[#A9BDB1]">{t('averageMoisture')}</p>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-3xl font-black text-[#F4F8F5]">{avgMoisture}%</span>
-              <span className="text-xs text-[#64D995] font-bold">Optimal</span>
+              <span className="text-3xl font-black text-[#F4F8F5]">{avgMoisture == null ? '—' : `${Math.round(avgMoisture)}%`}</span>
+              <span className="text-xs text-[#64D995] font-bold">{backendMode ? 'Recorded average' : 'Optimal'}</span>
             </div>
           </div>
         </div>
@@ -184,7 +189,7 @@ export const MoistureChart: React.FC<MoistureChartProps> = ({
           <div>
             <p className="text-xs font-bold text-[#A9BDB1]">{t('maxMoisture')}</p>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-3xl font-black text-[#F4F8F5]">{maxMoisture}%</span>
+              <span className="text-3xl font-black text-[#F4F8F5]">{maxMoisture == null ? '—' : `${maxMoisture}%`}</span>
               <span className="text-xs text-[#A9BDB1]/70 font-semibold">Post-rain</span>
             </div>
           </div>
@@ -197,7 +202,7 @@ export const MoistureChart: React.FC<MoistureChartProps> = ({
           <div>
             <p className="text-xs font-bold text-[#A9BDB1]">{t('minMoisture')}</p>
             <div className="flex items-baseline gap-1 mt-0.5">
-              <span className="text-3xl font-black text-[#F4F8F5]">{minMoisture}%</span>
+              <span className="text-3xl font-black text-[#F4F8F5]">{minMoisture == null ? '—' : `${minMoisture}%`}</span>
               <span className="text-xs text-[#A9BDB1]/70 font-semibold">Pre-irrigation</span>
             </div>
           </div>
@@ -230,6 +235,7 @@ export const MoistureChart: React.FC<MoistureChartProps> = ({
         </div>
 
         <div className="h-72 w-full">
+          {backendMode && chartData.length === 0 ? <div className="h-full flex items-center justify-center text-sm text-[#A9BDB1]">No readings recorded for this field and time range.</div> :
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
@@ -282,6 +288,7 @@ export const MoistureChart: React.FC<MoistureChartProps> = ({
               />
             </LineChart>
           </ResponsiveContainer>
+          }
         </div>
 
         {/* Farmer Simple Explanation Box */}

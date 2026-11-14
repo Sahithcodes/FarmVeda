@@ -3,6 +3,7 @@ import { UserProfile, Language, FarmerDesignation } from '../types';
 import { dbService } from '../db/dbService';
 import { hashPassword, verifyPassword, validatePasswordRequirements, validateEmail, validateMobile } from '../utils/crypto';
 import { useLanguage } from '../i18n/LanguageContext';
+import { apiClient, ApiError } from '../services/apiClient';
 
 export interface SignUpFormData {
   fullName: string;
@@ -42,6 +43,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const [authScreen, setAuthScreen] = useState<'login' | 'signup' | 'forgot_password'>('login');
 
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+      apiClient.clearAccessToken();
+      setCurrentUser(null);
+      setAuthScreen('login');
+    };
+    window.addEventListener('farmveda:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('farmveda:unauthorized', handleUnauthorized);
+  }, []);
+
   // Load existing session on boot
   useEffect(() => {
     const initAuth = async () => {
@@ -57,7 +70,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (sessionRaw) {
           const session = JSON.parse(sessionRaw);
           if (session?.userId) {
-            const user = await dbService.getUserById(session.userId);
+            let remoteUser: {id:string;full_name:string;email:string;preferred_language?:Language} | undefined;
+            let sessionVerificationUnavailable = false;
+            if (apiClient.configured) {
+              try { remoteUser = await apiClient.restoreSession(); }
+              catch { sessionVerificationUnavailable = true; }
+            }
+            let user = await dbService.getUserById(session.userId);
+            if (apiClient.configured && remoteUser && remoteUser.id === session.userId) {
+              user = user
+                ? { ...user, fullName: remoteUser.full_name, email: remoteUser.email, preferredLanguage: remoteUser.preferred_language || user.preferredLanguage }
+                : {
+                    id: remoteUser.id, fullName: remoteUser.full_name, email: remoteUser.email, mobileNumber: '',
+                    passwordHash: '', preferredLanguage: remoteUser.preferred_language || 'en', state: '', district: '',
+                    termsAccepted: true, createdAt: new Date().toISOString(),
+                  };
+              await dbService.createUser(user).catch(() => undefined);
+            } else if (apiClient.configured && sessionVerificationUnavailable && user) {
+              // Keep the cached identity during a temporary backend outage; protected requests still require a valid API token.
+            } else if (apiClient.configured) {
+              sessionStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(STORAGE_KEY);
+              user = undefined;
+            }
             if (user) {
               setCurrentUser(user);
               if (user.preferredLanguage) {
@@ -95,6 +130,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await dbService.initializeDatabase();
+      if (apiClient.configured) {
+        if (identifier.includes('@')) {
+          const response = await apiClient.login(identifier.trim(), password, rememberMe);
+          const remote = response.user as { id: string; full_name: string; email: string; preferred_language?: Language };
+          let profile = await dbService.getUserById(remote.id);
+          if (!profile) {
+            profile = {
+              id: remote.id, fullName: remote.full_name, email: remote.email, mobileNumber: '',
+              passwordHash: await hashPassword(password), preferredLanguage: remote.preferred_language || 'en',
+              state: '', district: '', termsAccepted: true, createdAt: new Date().toISOString(),
+            };
+            await dbService.createUser(profile);
+          }
+          const updated = { ...profile, lastLoginAt: new Date().toISOString() };
+          await dbService.updateUser(remote.id, { lastLoginAt: updated.lastLoginAt });
+          const sessionData = JSON.stringify({ userId: remote.id, rememberMe, loggedInAt: new Date().toISOString() });
+          if (rememberMe) { localStorage.setItem(STORAGE_KEY, sessionData); sessionStorage.removeItem(STORAGE_KEY); }
+          else { sessionStorage.setItem(STORAGE_KEY, sessionData); localStorage.removeItem(STORAGE_KEY); }
+          setCurrentUser(updated);
+          setLanguage(updated.preferredLanguage);
+          return { success: true };
+        }
+        return { success: false, error: 'Enter the email address used for your backend account.' };
+      }
       const user = await dbService.getUserByEmailOrMobile(identifier.trim());
       if (!user) {
         return { success: false, error: 'No account found with this email or mobile number.' };
@@ -129,8 +188,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { success: true };
     } catch (err) {
-      console.error('Login error:', err);
-      return { success: false, error: 'Authentication failed. Please try again.' };
+      return { success: false, error: err instanceof ApiError ? err.message : 'Authentication failed. Please try again.' };
     }
   };
 
@@ -169,6 +227,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       await dbService.initializeDatabase();
+
+      if (apiClient.configured) {
+        const response = await apiClient.register({
+          full_name: data.fullName.trim(), email: data.email.trim().toLowerCase(),
+          mobile_number: data.mobileNumber.trim(), password: data.password,
+          preferred_language: data.preferredLanguage,
+        });
+        const remote = response.user as { id: string; full_name: string; email: string; preferred_language?: Language };
+        const passwordHash = await hashPassword(data.password);
+        const newUser: UserProfile = {
+          id: remote.id, fullName: remote.full_name, email: remote.email, mobileNumber: data.mobileNumber.trim(),
+          passwordHash, preferredLanguage: remote.preferred_language || data.preferredLanguage,
+          state: data.state.trim(), district: data.district.trim(), designation: data.designation || 'Farm Owner & Manager',
+          avatarUrl: data.avatarUrl, termsAccepted: true, createdAt: new Date().toISOString(), lastLoginAt: new Date().toISOString(),
+        };
+        await dbService.createUser(newUser);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId: remote.id, rememberMe: true, loggedInAt: new Date().toISOString() }));
+        setCurrentUser(newUser);
+        setLanguage(newUser.preferredLanguage);
+        return { success: true, user: newUser };
+      }
 
       // Check if user already exists
       const existingEmail = await dbService.getUserByEmailOrMobile(data.email);
@@ -210,8 +289,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       return { success: true, user: newUser };
     } catch (err) {
-      console.error('Sign up error:', err);
-      return { success: false, error: 'Registration failed. Please try again.' };
+      return { success: false, error: err instanceof ApiError ? err.message : 'Registration failed. Please try again.' };
     }
   };
 
@@ -254,6 +332,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem(STORAGE_KEY);
     setCurrentUser(null);
     setAuthScreen('login');
+    void apiClient.logout().catch(() => undefined);
   }, []);
 
   // Profile update handler

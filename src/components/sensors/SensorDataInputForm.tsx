@@ -22,7 +22,7 @@ interface SensorDataInputFormProps {
   sensors: Sensor[];
   defaultFarmId?: string;
   defaultFieldId?: string;
-  onSubmit: (reading: Omit<SensorReading, 'id'>) => void;
+  onSubmit: (reading: Omit<SensorReading, 'id'>) => void | Promise<void>;
   onCancel?: () => void;
 }
 
@@ -42,19 +42,17 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
   const currentTime = now.toTimeString().slice(0, 5);
 
   const [farmId, setFarmId] = useState<string>(
-    defaultFarmId || farms[0]?.id || ''
+    farms.some((farm) => farm.id === defaultFarmId) ? defaultFarmId! : farms[0]?.id || ''
   );
 
   const availableFields = fields.filter((f) => f.farmId === farmId);
   const [fieldId, setFieldId] = useState<string>(
-    defaultFieldId || availableFields[0]?.id || ''
+    availableFields.some((field) => field.id === defaultFieldId) ? defaultFieldId! : availableFields[0]?.id || ''
   );
 
-  const availableSensors = sensors.filter(
-    (s) => s.fieldId === fieldId || s.farmId === farmId
-  );
+  const availableSensors = sensors.filter((s) => s.fieldId === fieldId && s.farmId === farmId);
   const [sensorId, setSensorId] = useState<string>(
-    availableSensors[0]?.id || availableSensors[0]?.sensorCode || ''
+    availableSensors[0]?.id || ''
   );
 
   // Readings
@@ -68,6 +66,7 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
 
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Clear Form
   const handleClearForm = () => {
@@ -81,7 +80,7 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
     setErrorMessage(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -148,10 +147,16 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
       source: 'manual',
     };
 
-    onSubmit(newReading);
-
-    setSuccessToast(t('readingSavedSuccess'));
-    setTimeout(() => setSuccessToast(null), 3500);
+    setIsSubmitting(true);
+    try {
+      await onSubmit(newReading);
+      setSuccessToast(t('readingSavedSuccess'));
+      setTimeout(() => setSuccessToast(null), 3500);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Could not save this sensor reading. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -201,9 +206,12 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
             <select
               value={farmId}
               onChange={(e) => {
-                setFarmId(e.target.value);
-                const firstF = fields.find((f) => f.farmId === e.target.value);
-                setFieldId(firstF?.id || '');
+                const nextFarmId = e.target.value;
+                const firstField = fields.find((field) => field.farmId === nextFarmId);
+                const nextSensors = sensors.filter((sensor) => sensor.farmId === nextFarmId && sensor.fieldId === firstField?.id);
+                setFarmId(nextFarmId);
+                setFieldId(firstField?.id || '');
+                setSensorId(nextSensors[0]?.id || '');
               }}
               required
               className="w-full px-4 py-3 rounded-2xl border border-[#244D3F] text-xs sm:text-sm font-semibold bg-[#10251F] text-[#F4F8F5] focus:outline-none focus:ring-2 focus:ring-[#64D995] cursor-pointer"
@@ -224,10 +232,9 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
               value={fieldId}
               onChange={(e) => {
                 setFieldId(e.target.value);
-                const matchingSensors = sensors.filter(
-                  (s) => s.fieldId === e.target.value || s.farmId === farmId
-                );
-                setSensorId(matchingSensors[0]?.id || matchingSensors[0]?.sensorCode || '');
+                const nextFieldId = e.target.value;
+                const matchingSensors = sensors.filter((s) => s.fieldId === nextFieldId && s.farmId === farmId);
+                setSensorId(matchingSensors[0]?.id || '');
               }}
               required
               className="w-full px-4 py-3 rounded-2xl border border-[#244D3F] text-xs sm:text-sm font-semibold bg-[#10251F] text-[#F4F8F5] focus:outline-none focus:ring-2 focus:ring-[#64D995] cursor-pointer"
@@ -255,7 +262,7 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
               className="w-full px-4 py-3 rounded-2xl border border-[#244D3F] text-xs sm:text-sm font-semibold bg-[#10251F] text-[#F4F8F5] focus:outline-none focus:ring-2 focus:ring-[#64D995] cursor-pointer"
             >
               {availableSensors.length === 0 ? (
-                <option value="" className="bg-[#10251F] text-[#F4F8F5]">Manual Gauge Node</option>
+                <option value="" className="bg-[#10251F] text-[#F4F8F5]">No sensor registered for this field</option>
               ) : (
                 availableSensors.map((s) => (
                   <option key={s.id} value={s.id} className="bg-[#10251F] text-[#F4F8F5]">
@@ -426,10 +433,11 @@ export const SensorDataInputForm: React.FC<SensorDataInputFormProps> = ({
         <div className="pt-4 border-t border-[#244D3F] flex flex-wrap items-center gap-3">
           <button
             type="submit"
+            disabled={isSubmitting || !sensorId}
             className="flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-[#2E8B57] to-[#1F6B41] hover:from-[#359d63] hover:to-[#247c4b] text-white font-black text-sm sm:text-base shadow-lg shadow-[#2E8B57]/30 active:scale-95 transition-transform flex items-center justify-center gap-2 min-h-[52px] cursor-pointer"
           >
             <CheckCircle2 className="w-5 h-5 text-[#F4B740]" />
-            <span>{t('submitReading')}</span>
+            <span>{isSubmitting ? 'Saving…' : t('submitReading')}</span>
           </button>
 
           <button
